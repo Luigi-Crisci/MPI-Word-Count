@@ -1,1 +1,4 @@
-timing.log
+compile_and_run_seq.sh
+compile.sh
+*.out
+*.log

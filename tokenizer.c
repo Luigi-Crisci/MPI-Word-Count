@@ -3,7 +3,7 @@
 #include <string.h>
 #include"tokenizer.h"
 
-static char *default_delimiters = "delimiters.txt";
+static char *default_delimiters = "/home/peppe/vscode_pcpc_workspace/WordCount/delimiters.txt";
 static char end_lines[4] = {'\n','\t','\r',' '};
 static char *delimiters = NULL;
 static int delimeters_size;
