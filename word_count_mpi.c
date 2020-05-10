@@ -244,6 +244,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 		}
 
 		readed_bytes = next_word(file, &word);
+		bytes_to_read -= readed_bytes;
 		//If the file endend, skip to next file
 		if (word == NULL)
 		{
@@ -252,7 +253,6 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 			file = NULL;
 			continue;
 		}
-		bytes_to_read -= readed_bytes;
 		/**
 		 * Because next_word() trim the delimeter before next word,
 		 * when the bytes_to_read end with a delimeterm, next_word() reads also
@@ -325,7 +325,7 @@ int main(int argc, char **argv)
 
 	if (rank == 0)
 	{
-		// output_hash_map();
+		output_hash_map();
 		end_time = MPI_Wtime();
 		timing_file = fopen("timing.log", "a");
 		fprintf(timing_file, "%lf\n", end_time - start_time);
