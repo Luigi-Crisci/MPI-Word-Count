@@ -127,12 +127,11 @@ int is_power_of_two(double num)
 
 void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 {
-
 	int cur_rank = rank, level = 0, num_slaves = num_proc - 1;
 
 	int dim_buffer = 1, num_requests = 0;
-	cell **buffers = calloc(dim_buffer, sizeof(cell) * 100000);
-	MPI_Request requests[(int)ceil(log2(num_proc))];
+	cell **buffers = calloc(dim_buffer, sizeof(cell*));
+	MPI_Request requests[(int)ceil(log2(num_proc))],tmp_send;
 
 	while (cur_rank % 2 == 0 && level < ceil(log2(num_proc)))
 	{
@@ -140,9 +139,10 @@ void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 		{ //I'm the last one
 			if (is_power_of_two(cur_rank))
 			{
-				int dim;
-				cell *results = compact_map(&results);
-				MPI_Isend(results, dim, CELL, 0, 0, MPI_COMM_WORLD, MPI_REQUEST_NULL);
+				long int dim;
+				cell *results = compact_map(&dim);
+				MPI_Isend(results, dim, CELL, 0, 0, MPI_COMM_WORLD, &tmp_send);
+				MPI_Request_free(&tmp_send);
 				return;
 			}
 		}
@@ -150,10 +150,12 @@ void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 		{
 			if (num_requests == dim_buffer)
 			{
-				num_requests *= 2;
-				buffers = realloc(buffers, sizeof(cell) * 100000 * dim_buffer);
+				dim_buffer *= 2;
+				buffers = realloc(buffers, sizeof(cell*) * dim_buffer);
 			}
-			MPI_Irecv(&buffers[num_requests], 100000 * sizeof(cell), CELL, rank + (1 * pow(2, level)),
+
+			buffers[num_requests] = calloc(100000,sizeof(cell));
+			MPI_Irecv(buffers[num_requests], 100000 * sizeof(cell), CELL, rank + (1 * pow(2, level)),
 					  0, MPI_COMM_WORLD, &requests[num_requests]);
 			num_requests++;
 		}
@@ -161,17 +163,27 @@ void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 		level++;
 	}
 
-	/**
-	 * TODO: Should wait here for every receive to complete before send
-	*/
-
+		
+	int index,received_dim;
+	MPI_Status status;
+	for (int i = 0; i < num_requests; i++)
+	{
+		MPI_Waitany(num_requests,requests,&index,&status);
+		printf("RANK %d: received datas from rank %d\n",rank,status.MPI_SOURCE);
+		MPI_Get_count(&status,CELL,&received_dim);
+		add_cell_array(buffers[index],received_dim);
+	}
+	
 	if (rank != 0)
 	{
-		int dim;
-		cell *results = compact_map(&results);
-		MPI_Isend(results, dim, CELL, rank - (1 * pow(2,level)), 0, MPI_COMM_WORLD, MPI_REQUEST_NULL);
+		long int dim;
+		cell *results = compact_map(&dim);
+		MPI_Isend(results, dim, CELL, rank - (1 * pow(2,level)), 0, MPI_COMM_WORLD, &tmp_send);
+		MPI_Request_free(&tmp_send);
 	}
 }
+
+
 
 couple *count_word_parallel(struct dirent **files, int num_files,
 							char *basepath, int num_proc, int rank, MPI_Datatype INFO, MPI_Datatype CELL)
@@ -324,28 +336,6 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 	//Receiving and reduce results
 	send_data(num_proc, rank, my_info->counting, CELL);
 
-	if (rank == 0)
-	{
-		MPI_Status status;
-		int dim;
-		//I use partitioning[0] beause is alwayis the biggest partition possible
-		cell *data = malloc(sizeof(cell) * partitioning[0]);
-		//Receive a results from each slave
-		for (int i = 0; i < num_proc - 1; i++)
-		{
-			MPI_Recv(data, partitioning[0], CELL, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-			printf("Received results from slave %d\n", status.MPI_SOURCE);
-			MPI_Get_count(&status, CELL, &dim);
-			add_cell_array(data, dim);
-		}
-	}
-	else
-	{
-		long int results_dim;
-		cell *results = compact_map(&results_dim);
-		MPI_Send(results, results_dim, CELL, 0, 0, MPI_COMM_WORLD); //Send my results to master
-		free(results);
-	}
 }
 
 int main(int argc, char **argv)
