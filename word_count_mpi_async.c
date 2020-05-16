@@ -125,25 +125,25 @@ int is_power_of_two(double num)
 	return ceil(log2(num)) == log2(num);
 }
 
-void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
+void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 {
-	int cur_rank = rank, level = 0, num_slaves = num_proc - 1;
+	int cur_rank,level,dim_buffer,num_requests,send_proc;
+	cur_rank = rank;
+	level = num_requests = 0;
+	dim_buffer = 1;
 
-	int dim_buffer = 1, num_requests = 0;
 	cell **buffers = calloc(dim_buffer, sizeof(cell*));
 	MPI_Request requests[(int)ceil(log2(num_proc))],tmp_send;
 
+	send_proc = rank - 1;
 	while (cur_rank % 2 == 0 && level < ceil(log2(num_proc)))
 	{
 		if (ceil(num_proc / pow(2, level)) == (cur_rank + 1))
-		{ //I'm the last one
+		{ 	//I'm the last one
 			if (is_power_of_two(cur_rank))
 			{
-				long int dim;
-				cell *results = compact_map(&dim);
-				MPI_Isend(results, dim, CELL, 0, 0, MPI_COMM_WORLD, &tmp_send);
-				MPI_Request_free(&tmp_send);
-				return;
+				send_proc = 0;
+				break;
 			}
 		}
 		else
@@ -155,15 +155,16 @@ void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 			}
 
 			buffers[num_requests] = calloc(100000,sizeof(cell));
-			MPI_Irecv(buffers[num_requests], 100000 * sizeof(cell), CELL, rank + (1 * pow(2, level)),
+			MPI_Irecv(buffers[num_requests], 100000 * sizeof(cell), CELL, (int)(rank + pow(2, level)),
 					  0, MPI_COMM_WORLD, &requests[num_requests]);
 			num_requests++;
 		}
 		cur_rank = cur_rank / 2;
 		level++;
+		send_proc = (int)(rank - pow(2,level));
 	}
-
-		
+	
+	//Wait to receive all requested datas
 	int index,received_dim;
 	MPI_Status status;
 	for (int i = 0; i < num_requests; i++)
@@ -172,13 +173,17 @@ void send_data(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 		printf("RANK %d: received datas from rank %d\n",rank,status.MPI_SOURCE);
 		MPI_Get_count(&status,CELL,&received_dim);
 		add_cell_array(buffers[index],received_dim);
+		free(buffers[index]);
 	}
+	free(buffers);
 	
+	//Send my results to another processor
 	if (rank != 0)
 	{
 		long int dim;
 		cell *results = compact_map(&dim);
-		MPI_Isend(results, dim, CELL, rank - (1 * pow(2,level)), 0, MPI_COMM_WORLD, &tmp_send);
+		printf("RANK %d: sending data to %d\n",rank,send_proc);
+		MPI_Isend(results, dim, CELL, send_proc , 0, MPI_COMM_WORLD, &tmp_send);
 		MPI_Request_free(&tmp_send);
 	}
 }
@@ -318,6 +323,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 			file = NULL;
 			continue;
 		}
+
 		/**
 		 * Because next_word() trim the delimeter before next word,
 		 * when the bytes_to_read end with a delimeterm, next_word() reads also
@@ -334,7 +340,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 	}
 
 	//Receiving and reduce results
-	send_data(num_proc, rank, my_info->counting, CELL);
+	reduce(num_proc, rank, my_info->counting, CELL);
 
 }
 

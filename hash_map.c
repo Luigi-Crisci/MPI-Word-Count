@@ -68,7 +68,7 @@ void add_cell_array(cell* vet,long int dim){
 int add_or_update(cell* c){
 	if( c-> key == NULL )
 		return 0;
-	
+
 	int pos = hashing(c -> key);
 	if(!updateList(map -> lists[pos],c))
 		if(!insertList(map->lists[pos],sizeList(map->lists[pos]),c))
@@ -77,9 +77,6 @@ int add_or_update(cell* c){
 	return 1;
 }
 
-/**
- * La firma andrebbe invertita
- */
 cell* compact_map(long int *dim){
 	long int total_size = 0;
 	for(long int i=0; i < num_lists; i++)

@@ -2,6 +2,6 @@ compile_and_run_seq.sh
 compile.sh
 *.out
 *.log
-compile_asynch.sh
+*.sh
 test_reduce.c
 word_count_seq
