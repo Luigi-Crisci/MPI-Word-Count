@@ -112,6 +112,7 @@ int main(int argc, char **argv)
 		fclose(fc);
 	}
 
+	output_hash_map();
 	free_hash_map();
 
 	gettimeofday(&end,0);

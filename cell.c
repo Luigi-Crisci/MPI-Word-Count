@@ -35,5 +35,5 @@ void free_struct(cell* e){
 }
 
 void output_struct(cell *c){
-	printf("Key: %s -- Value: %d\n", c -> key, c -> value);
+	printf("Key: %s -- Value: %ld\n", c -> key, c -> value);
 }

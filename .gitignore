@@ -5,3 +5,4 @@ compile.sh
 *.sh
 test_reduce.c
 word_count_seq
+*.bck

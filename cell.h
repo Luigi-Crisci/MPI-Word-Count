@@ -1,6 +1,6 @@
 typedef struct c_cell{
 	char key[30];
-	int value;
+	long int value;
 } cell;
 
 cell* new_cell();

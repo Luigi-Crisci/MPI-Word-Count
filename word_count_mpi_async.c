@@ -13,16 +13,15 @@
 #include "hash_map.h"
 #include "tokenizer.h"
 #define MAX_PATH 400
+#define MAX_WORD_NUM 100000
 
+/**
+ * Struct used to inform slaves about computation
+ */
 typedef struct info
 {
-	int num_file, num_byte, counting;
+	long int num_file, num_byte,counting;
 } info;
-
-typedef struct c_couple
-{
-	int id_file, num_word;
-} * couple;
 
 void usage()
 {
@@ -45,7 +44,7 @@ void parse_arg(int argc, char **argv, char **path)
 		switch (opt)
 		{
 		case 'p':
-			*path = malloc(strlen(optarg));
+			*path = (char*) malloc(strlen(optarg));
 			strcpy(*path, optarg);
 			break;
 		default:
@@ -57,19 +56,22 @@ void parse_arg(int argc, char **argv, char **path)
 		usage();
 }
 
+/**
+ * Read all regular files in target directory and order them
+ */
 struct dirent **read_files(int *num_files, char *path)
 {
 	int increment, current_dim;
 	increment = 10;
 	current_dim = increment;
-	struct dirent **files = malloc(current_dim * sizeof(struct dirent *));
-	struct dirent *e;
+	struct dirent **files = (struct dirent**) malloc(current_dim * sizeof(struct dirent *)),*e;
+	
 	DIR *dir = opendir(path);
 	while ((e = readdir(dir)) != NULL)
 	{
 		if (e->d_type != DT_REG)
 			continue;
-		files[*num_files] = malloc(sizeof(struct dirent));
+		files[*num_files] = (struct dirent*) malloc(sizeof(struct dirent));
 		memcpy(files[*num_files], e, sizeof(struct dirent));
 		if (*num_files == current_dim)
 		{
@@ -82,7 +84,7 @@ struct dirent **read_files(int *num_files, char *path)
 
 	/**
 	 * For some reason my workstation is unable to call qsort
-	 * I order the file ho have an order relationship
+	 * I order the file to have an order relationship
 	 */
 	for (int i = 0; i < *num_files; i++)
 	{
@@ -102,32 +104,38 @@ void define_types(MPI_Datatype *CELL, MPI_Datatype *STRING, MPI_Datatype *INFO)
 	//Define INFO type
 	int blockcount_info[1] = {3};
 	MPI_Aint displacement_info[1] = {0};
-	MPI_Datatype oldtype_info[1] = {MPI_INT};
+	MPI_Datatype oldtype_info[1] = {MPI_INT64_T}; 
 	MPI_Type_create_struct(1, blockcount_info, displacement_info, oldtype_info, INFO);
+
+	//Define STRING type
 	MPI_Type_contiguous(30, MPI_CHAR, STRING);
+
+	//Define CELL type
 	int bloclcount_cell[2];
 	MPI_Aint displacement_cell[2], lb, extent;
-	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_INT};
+	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_LONG_INT};
 	cell x; //Needed to find offsets because MPI_Get_Extent gave me incorrect results
-	//For STRING
+	//For STRING field
 	bloclcount_cell[0] = 1;
 	displacement_cell[0] = 0;
-	//For INT
+	//For LONG INT field
 	MPI_Type_get_extent(*STRING, &lb, &extent);
 	bloclcount_cell[1] = 1;
 	displacement_cell[1] = ((void *)&(x.value)) - ((void *)&(x.key[0]));
-
 	MPI_Type_create_struct(2, bloclcount_cell, displacement_cell, oldtype_cell, CELL);
 }
 
-int is_power_of_two(double num)
+static int is_power_of_two(double num)
 {
 	return ceil(log2(num)) == log2(num);
 }
 
+/**
+ * Reduce results, using a tree structure to maximize slaves utilization
+ */
 void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 {
-	int cur_rank,level,dim_buffer,num_requests,send_proc;
+	long int cur_rank,level,dim_buffer,num_requests,send_proc;
 	cur_rank = rank;
 	level = num_requests = 0;
 	dim_buffer = 1;
@@ -154,8 +162,8 @@ void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 				buffers = realloc(buffers, sizeof(cell*) * dim_buffer);
 			}
 
-			buffers[num_requests] = calloc(100000,sizeof(cell));
-			MPI_Irecv(buffers[num_requests], 100000 * sizeof(cell), CELL, (int)(rank + pow(2, level)),
+			buffers[num_requests] = calloc(MAX_WORD_NUM,sizeof(cell));
+			MPI_Irecv(buffers[num_requests], MAX_WORD_NUM * sizeof(cell), CELL, (int)(rank + pow(2, level)),
 					  0, MPI_COMM_WORLD, &requests[num_requests]);
 			num_requests++;
 		}
@@ -164,7 +172,7 @@ void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 		send_proc = (int)(rank - pow(2,level));
 	}
 	
-	//Wait to receive all requested datas
+	//Wait to receive all requested data
 	int index,received_dim;
 	MPI_Status status;
 	for (int i = 0; i < num_requests; i++)
@@ -182,19 +190,21 @@ void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 	{
 		long int dim;
 		cell *results = compact_map(&dim);
-		printf("RANK %d: sending data to %d\n",rank,send_proc);
+		printf("RANK %d: sending data to %ld\n",rank,send_proc);
 		MPI_Isend(results, dim, CELL, send_proc , 0, MPI_COMM_WORLD, &tmp_send);
 		MPI_Request_free(&tmp_send);
 	}
 }
 
 
-
-couple *count_word_parallel(struct dirent **files, int num_files,
+/**
+ * Perform a word count on multiple files, partitioned with bytes precision, reduced with a tree structure
+ */
+void count_word_parallel(struct dirent **files, int num_files,
 							char *basepath, int num_proc, int rank, MPI_Datatype INFO, MPI_Datatype CELL)
 {
-	info *infos = malloc(sizeof(info) * num_proc), *my_info;
-	my_info = malloc(sizeof(struct info));
+	info *infos = (info*) malloc(sizeof(info) * num_proc), *my_info;
+	my_info = (info*) malloc(sizeof(info));
 	long int partitioning[num_proc];
 
 	//Need to compute info foreach process
@@ -236,7 +246,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 
 			if (i != (num_proc - 1))
 			{
-				/**
+			/**
 			 * We compute the start byte for next slave. Because there is an order relationship between files,
 			 * I treat the files as a contiguous array of bytes. To find the next bytes we just find the position we reach
 			 * in the virtual array, than translating that to the actual file it belongs
@@ -281,15 +291,15 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 			}
 
 			infos[i].counting = partitioning[i];
-			printf("Info for process %i: num_file: %ld -- count: %ld -- start_byte: %d\n", i, current_file, partitioning[i], infos[i].num_byte);
+			printf("Info for process %i: num_file: %ld -- count: %ld -- start_byte: %ld\n", i, infos[i].num_file, infos[i].counting,infos[i].num_byte);
 		}
 	}
-	//Distributing info about processing to each slave
+	// //Distributing info about processing to each slave
 	MPI_Scatter(infos, 1, INFO, my_info, 1, INFO, 0, MPI_COMM_WORLD);
 
-	long int bytes_to_read = my_info->counting;
-	int current_file = my_info->num_file;
-	long int start_byte = my_info->num_byte;
+	long int bytes_to_read = my_info-> counting;
+	long int current_file = my_info-> num_file;
+	long int start_byte = my_info-> num_byte;
 
 	char path[MAX_PATH], *word;
 	long int readed_bytes;
@@ -304,7 +314,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 		//Open the file for first time, or when I switch
 		if (file == NULL)
 		{
-			sprintf(path, "%s/%s", basepath, files[current_file]->d_name);
+			sprintf(path, "%s/%s", basepath, files[current_file]-> d_name);
 			file = fopen(path, "r");
 			if (start_byte > 0) //Skip to start position
 			{
@@ -357,6 +367,7 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
 
 	parse_arg(argc, argv, &basepath);
+	
 	//Start counting
 	start_time = MPI_Wtime();
 
