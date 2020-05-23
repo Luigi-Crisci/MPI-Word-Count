@@ -13,7 +13,6 @@
 #include "hash_map.h"
 #include "tokenizer.h"
 #define MAX_PATH 400
-#define MAX_WORD_NUM 100000
 
 /**
  * Struct used to inform slaves about computation
@@ -113,7 +112,7 @@ void define_types(MPI_Datatype *CELL, MPI_Datatype *STRING, MPI_Datatype *INFO)
 	//Define CELL type
 	int bloclcount_cell[2];
 	MPI_Aint displacement_cell[2], lb, extent;
-	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_LONG_INT};
+	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_INT64_T};
 	cell x; //Needed to find offsets because MPI_Get_Extent gave me incorrect results
 	//For STRING field
 	bloclcount_cell[0] = 1;
@@ -130,6 +129,18 @@ static int is_power_of_two(double num)
 	return ceil(log2(num)) == log2(num);
 }
 
+void write_csv(){
+	long int dim;
+	cell* cells = compact_map_ordered(&dim);
+	FILE* csv = fopen("csv_results.csv","w+");
+	
+	fputs("Word,Count\n",csv);
+	for (int i = 0; i < dim; i++)
+		fprintf(csv,"%s,%ld\n",cells[i].key,cells[i].value);
+	fclose(csv);
+	free(cells);
+}
+
 /**
  * Reduce results, using a tree structure to maximize slaves utilization
  */
@@ -143,11 +154,12 @@ void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 	cell **buffers = calloc(dim_buffer, sizeof(cell*));
 	MPI_Request requests[(int)ceil(log2(num_proc))],tmp_send;
 
-	send_proc = rank - 1;
+	send_proc = rank - 1; //Default behaviour
 	while (cur_rank % 2 == 0 && level < ceil(log2(num_proc)))
 	{
-		if (ceil(num_proc / pow(2, level)) == (cur_rank + 1))
-		{ 	//I'm the last one
+	 	//I'm the last one
+		if (ceil(num_proc / pow(2, level)) == (cur_rank + 1)){
+			//If I am a power of two and last one, i communicate with rank 0
 			if (is_power_of_two(cur_rank))
 			{
 				send_proc = 0;
@@ -178,7 +190,7 @@ void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
 	for (int i = 0; i < num_requests; i++)
 	{
 		MPI_Waitany(num_requests,requests,&index,&status);
-		printf("RANK %d: received datas from rank %d\n",rank,status.MPI_SOURCE);
+		printf("RANK %d: received data from rank %d\n",rank,status.MPI_SOURCE);
 		MPI_Get_count(&status,CELL,&received_dim);
 		add_cell_array(buffers[index],received_dim);
 		free(buffers[index]);
@@ -236,11 +248,10 @@ void count_word_parallel(struct dirent **files, int num_files,
 			overflow_value = total_dim % num_proc;
 		}
 
-		//Define info data for each slave
+		//Define info data foreach slave
 		for (int i = 0; i < num_proc; i++)
 		{
 			partitioning[i] = overflow && overflow_value-- > 0 ? total_dim / num_proc + 1 : total_dim / num_proc;
-
 			infos[i].num_file = current_file;
 			infos[i].num_byte = start_byte;
 
@@ -274,19 +285,22 @@ void count_word_parallel(struct dirent **files, int num_files,
 				 * The byte cuts a word only if the previous character IS NOT a delimiter, 
 				 * because it could be the start of a new word otehrwise. So I skip to start_byte - 1
 				 * and consume each character of the cutted word that will be computed to the previous slave
+				 * EDIT: Support for files dimension that divide num_proc
 				*/
-				fseek(f, start_byte - 1, SEEK_SET);
-				while (!is_delimeter(c = fgetc(f)))
-				{
-					start_byte++;
-					partitioning[i]++;
-				}
+				if(start_byte != 0){
+					fseek(f, start_byte - 1, SEEK_SET);
+					while (!is_delimeter(c = fgetc(f)))
+					{
+						start_byte++;
+						partitioning[i]++;
+					}
 
-				//The cutted word could be the last one
-				if (feof(f))
-				{
-					start_byte = 0;
-					current_file++;
+					//The cutted word could be the last one
+					if (feof(f))
+					{
+						start_byte = 0;
+						current_file++;
+					}
 				}
 			}
 
@@ -294,7 +308,7 @@ void count_word_parallel(struct dirent **files, int num_files,
 			printf("Info for process %i: num_file: %ld -- count: %ld -- start_byte: %ld\n", i, infos[i].num_file, infos[i].counting,infos[i].num_byte);
 		}
 	}
-	// //Distributing info about processing to each slave
+	//Distributing info about processing to each slave
 	MPI_Scatter(infos, 1, INFO, my_info, 1, INFO, 0, MPI_COMM_WORLD);
 
 	long int bytes_to_read = my_info-> counting;
@@ -387,7 +401,7 @@ int main(int argc, char **argv)
 
 	if (rank == 0)
 	{
-		output_hash_map();
+		write_csv();
 		end_time = MPI_Wtime();
 		timing_file = fopen("timing.log", "a");
 		fprintf(timing_file, "%lf\n", end_time - start_time);

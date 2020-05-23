@@ -112,7 +112,13 @@ int main(int argc, char **argv)
 		fclose(fc);
 	}
 
-	output_hash_map();
+	long int dim;
+	cell* c = compact_map_ordered(&dim);
+	for (int i = 0; i < dim; i++)
+	{
+		output_struct(&c[i]);
+	}
+	
 	free_hash_map();
 
 	gettimeofday(&end,0);

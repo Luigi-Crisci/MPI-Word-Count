@@ -6,3 +6,7 @@ compile.sh
 test_reduce.c
 word_count_seq
 *.bck
+*.csv
+files/*
+*.bash
+file_generator.c

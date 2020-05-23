@@ -4,10 +4,6 @@
 #include<string.h>
 #include<stdio.h>
 #include<ctype.h>
-#include<wchar.h>
-#define DEFAULT_LIST 20
-#define DEFAULT_PERCENT 20
-#define MAX_LISTS 650
 
 typedef struct c_hash_map{
 	long int size;
@@ -17,27 +13,31 @@ typedef struct c_hash_map{
 static int num_lists = -1;
 static hash_map map;
 
-//Create a number of lists equal to the DEFAULT_PERCENT of the number of values
+//Inizialize number of lists
 void initialize_map(long int value){
-	if(num_lists == -1 && value > DEFAULT_PERCENT)
-		if ( (value / DEFAULT_PERCENT) > MAX_LISTS)
-			num_lists = MAX_LISTS;
-		else
-			num_lists = value / DEFAULT_PERCENT;
+	if( num_lists == -1)
+		num_lists = (value > MAX_WORD_NUM) ? MAX_WORD_NUM : (value <= 0 ? DEFAULT_LIST : value) ;
 }
 
 /**
- * Perform hashing
- * An hash is obtained from the lowered character sum of the key, moduled with the number of lists
+ * Perform a FNV hashing
  */
-static int hashing(char* key){
-	int hash = 0;
-	for(int i = 0; i < strlen(key); i++){
+static unsigned hashing(char *key)
+{
+	for (int i = 0; i < strlen(key); i++)
 		key[i] = tolower(key[i]);
-		hash += key[i];
-	}
+	
+    unsigned char *p = key;
+	unsigned len = strlen(key);
+    unsigned h = 2166136261;
+    int i;
 
-	return hash % num_lists < 0 ? hash % num_lists * -1 : hash % num_lists;
+    for (i = 0; i < len; i++)
+    {
+        h = (h * 16777619) ^ p[i];
+    }
+
+    return h % num_lists < 0 ? h % num_lists * -1 : h % num_lists;
 }
 
 void new_hash_map(){
@@ -63,7 +63,8 @@ void add_cell_array(cell* vet,long int dim){
 }
 
 /**
- * Very specific method for WordCount problem instances
+ * Add a cell to the hash map. If the cell is arleady present, update that one with this cell value
+ * This method if useful if your cells have a key-value shape
  */
 int add_or_update(cell* c){
 	if( c-> key == NULL )
@@ -77,7 +78,43 @@ int add_or_update(cell* c){
 	return 1;
 }
 
+/**
+ * Return an array of all elements contained in the hash map
+ */
 cell* compact_map(long int *dim){
+	long int total_size = 0;
+	for(long int i=0; i < num_lists; i++)
+		total_size += sizeList(map -> lists[i]);
+	*dim = total_size;
+
+	item e;
+	cell* array = calloc(sizeof(cell),total_size);
+	for (long int i = 0,current_pos = 0; i < num_lists; i++)
+			for (int j = 0; j < sizeList(map -> lists[i]); j++){
+				e = getItem(map -> lists[i],j);
+				memcpy(&array[current_pos++],e,sizeof(cell));
+				free(e);
+			}
+	return array;
+}
+
+void insert_order(cell* vet,int lenght, cell* c){
+
+	for (int i = 0; i < lenght; i++)
+	{
+		if(compare_struct(c,&vet[i]) <= 0){
+			//shift right from i
+			for (int j = lenght - 1; j >= i; j--)
+				memcpy(&vet[j+1],&vet[j],sizeof(cell));
+			memcpy(&vet[i],c,sizeof(cell));
+			return;
+		}
+	}
+	//Is the last one
+	memcpy(&vet[lenght],c,sizeof(cell));	
+}
+
+cell* compact_map_ordered(long int *dim){
 	long int total_size = 0;
 	for(long int i=0; i < num_lists; i++)
 		total_size += sizeList(map -> lists[i]);
@@ -85,10 +122,16 @@ cell* compact_map(long int *dim){
 
 	cell* array = calloc(sizeof(cell),total_size);
 	for (long int i = 0,current_pos = 0; i < num_lists; i++)
-			for (int j = 0; j < sizeList(map -> lists[i]); j++)
-				memcpy(&array[current_pos++],getItem(map -> lists[i],j),sizeof(cell));
+			for (int j = 0; j < sizeList(map -> lists[i]); j++){
+				cell* e = getItem(map -> lists[i], j);
+				insert_order(array,current_pos,e);
+				current_pos++;
+				free(e);
+			}
 	return array;
 }
+
+
 
 void output_hash_map(){
 	for (long int i = 0; i < num_lists; i++){
@@ -100,6 +143,7 @@ void output_hash_map(){
 		}
 	}
 }
+
 
 void free_hash_map(){
 	for (long int i = 0; i < num_lists; i++)
