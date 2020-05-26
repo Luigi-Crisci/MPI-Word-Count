@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <string.h>
+#include <math.h>
 #include <getopt.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -13,15 +14,13 @@
 #include "tokenizer.h"
 #define MAX_PATH 400
 
+/**
+ * Struct used to inform slaves about computation
+ */
 typedef struct info
 {
-	int num_file, num_byte, counting;
+	long int num_file, num_byte,counting;
 } info;
-
-typedef struct c_couple
-{
-	int id_file, num_word;
-} * couple;
 
 void usage()
 {
@@ -44,7 +43,7 @@ void parse_arg(int argc, char **argv, char **path)
 		switch (opt)
 		{
 		case 'p':
-			*path = malloc(strlen(optarg));
+			*path = (char*) malloc(strlen(optarg));
 			strcpy(*path, optarg);
 			break;
 		default:
@@ -56,19 +55,22 @@ void parse_arg(int argc, char **argv, char **path)
 		usage();
 }
 
+/**
+ * Read all regular files in target directory and order them
+ */
 struct dirent **read_files(int *num_files, char *path)
 {
 	int increment, current_dim;
 	increment = 10;
 	current_dim = increment;
-	struct dirent **files = malloc(current_dim * sizeof(struct dirent *));
-	struct dirent *e;
+	struct dirent **files = (struct dirent**) malloc(current_dim * sizeof(struct dirent *)),*e;
+	
 	DIR *dir = opendir(path);
 	while ((e = readdir(dir)) != NULL)
 	{
 		if (e->d_type != DT_REG)
 			continue;
-		files[*num_files] = malloc(sizeof(struct dirent));
+		files[*num_files] = (struct dirent*) malloc(sizeof(struct dirent));
 		memcpy(files[*num_files], e, sizeof(struct dirent));
 		if (*num_files == current_dim)
 		{
@@ -81,7 +83,7 @@ struct dirent **read_files(int *num_files, char *path)
 
 	/**
 	 * For some reason my workstation is unable to call qsort
-	 * I order the file ho have an order relationship
+	 * I order the file to have an order relationship
 	 */
 	for (int i = 0; i < *num_files; i++)
 	{
@@ -101,30 +103,120 @@ void define_types(MPI_Datatype *CELL, MPI_Datatype *STRING, MPI_Datatype *INFO)
 	//Define INFO type
 	int blockcount_info[1] = {3};
 	MPI_Aint displacement_info[1] = {0};
-	MPI_Datatype oldtype_info[1] = {MPI_INT};
+	MPI_Datatype oldtype_info[1] = {MPI_INT64_T}; 
 	MPI_Type_create_struct(1, blockcount_info, displacement_info, oldtype_info, INFO);
 
+	//Define STRING type
 	MPI_Type_contiguous(30, MPI_CHAR, STRING);
+
+	//Define CELL type
 	int bloclcount_cell[2];
 	MPI_Aint displacement_cell[2], lb, extent;
-	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_INT};
+	MPI_Datatype oldtype_cell[2] = {*STRING, MPI_INT64_T};
 	cell x; //Needed to find offsets because MPI_Get_Extent gave me incorrect results
-	//For STRING
+	//For STRING field
 	bloclcount_cell[0] = 1;
 	displacement_cell[0] = 0;
-	//For INT
+	//For LONG INT field
 	MPI_Type_get_extent(*STRING, &lb, &extent);
 	bloclcount_cell[1] = 1;
 	displacement_cell[1] = ((void *)&(x.value)) - ((void *)&(x.key[0]));
-
 	MPI_Type_create_struct(2, bloclcount_cell, displacement_cell, oldtype_cell, CELL);
 }
 
-couple *count_word_parallel(struct dirent **files, int num_files,
+static int is_power_of_two(double num)
+{
+	return ceil(log2(num)) == log2(num);
+}
+
+void write_csv(){
+	long int dim;
+	cell* cells = compact_map_ordered(&dim);
+	FILE* csv = fopen("csv_results.csv","w+");
+	
+	fputs("Word,Count\n",csv);
+	for (int i = 0; i < dim; i++)
+		fprintf(csv,"%s,%ld\n",cells[i].key,cells[i].value);
+	fclose(csv);
+	free(cells);
+}
+
+/**
+ * Reduce results, using a tree structure to maximize slaves utilization
+ */
+void reduce(int num_proc, int rank, int num_bytes, MPI_Datatype CELL)
+{
+	long int cur_rank,level,dim_buffer,num_requests,send_proc;
+	cur_rank = rank;
+	level = num_requests = 0;
+	dim_buffer = 1;
+
+	cell **buffers = calloc(dim_buffer, sizeof(cell*));
+	MPI_Request requests[(int)ceil(log2(num_proc))],tmp_send;
+
+	send_proc = rank - 1; //Default behaviour
+	while (cur_rank % 2 == 0 && level < ceil(log2(num_proc)))
+	{
+	 	//I'm the last one
+		if (ceil(num_proc / pow(2, level)) == (cur_rank + 1)){
+			//If I am a power of two and last one, i communicate with rank 0
+			if (is_power_of_two(cur_rank))
+			{
+				send_proc = 0;
+				break;
+			}
+		}
+		else
+		{
+			if (num_requests == dim_buffer)
+			{
+				dim_buffer *= 2;
+				buffers = realloc(buffers, sizeof(cell*) * dim_buffer);
+			}
+
+			buffers[num_requests] = calloc(MAX_WORD_NUM,sizeof(cell));
+			MPI_Irecv(buffers[num_requests], MAX_WORD_NUM * sizeof(cell), CELL, (int)(rank + pow(2, level)),
+					  0, MPI_COMM_WORLD, &requests[num_requests]);
+			num_requests++;
+		}
+		cur_rank = cur_rank / 2;
+		level++;
+		send_proc = (int)(rank - pow(2,level));
+	}
+	
+	//Wait to receive all requested data
+	int index,received_dim;
+	MPI_Status status;
+	for (int i = 0; i < num_requests; i++)
+	{
+		MPI_Waitany(num_requests,requests,&index,&status);
+		printf("RANK %d: received data from rank %d\n",rank,status.MPI_SOURCE);
+		MPI_Get_count(&status,CELL,&received_dim);
+		add_cell_array(buffers[index],received_dim);
+		free(buffers[index]);
+	}
+	free(buffers);
+	
+	//Send my results to another processor
+	if (rank != 0)
+	{
+		long int dim;
+		cell *results = compact_map_ordered(&dim);
+		printf("RANK %d: sending data to %ld\n",rank,send_proc);
+		MPI_Isend(results, dim, CELL, send_proc , 0, MPI_COMM_WORLD, &tmp_send);
+		MPI_Request_free(&tmp_send);
+	}
+}
+
+
+/**
+ * Perform a word count on multiple files, partitioned with bytes precision, reduced with a tree structure
+ */
+void count_word_parallel(struct dirent **files, int num_files,
 							char *basepath, int num_proc, int rank, MPI_Datatype INFO, MPI_Datatype CELL)
 {
-	info *infos = malloc(sizeof(info) * num_proc), *my_info;
-	my_info = malloc(sizeof(struct info));
+	info *infos = (info*) malloc(sizeof(info) * num_proc), *my_info;
+	my_info = (info*) malloc(sizeof(info));
 	long int partitioning[num_proc];
 
 	//Need to compute info foreach process
@@ -156,17 +248,16 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 			overflow_value = total_dim % num_proc;
 		}
 
-		//Define info data for each slave
+		//Define info data foreach slave
 		for (int i = 0; i < num_proc; i++)
 		{
 			partitioning[i] = overflow && overflow_value-- > 0 ? total_dim / num_proc + 1 : total_dim / num_proc;
-
 			infos[i].num_file = current_file;
 			infos[i].num_byte = start_byte;
 
 			if (i != (num_proc - 1))
 			{
-				/**
+			/**
 			 * We compute the start byte for next slave. Because there is an order relationship between files,
 			 * I treat the files as a contiguous array of bytes. To find the next bytes we just find the position we reach
 			 * in the virtual array, than translating that to the actual file it belongs
@@ -189,37 +280,40 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 				//Need to check if the current byte cuts a word
 				sprintf(path, "%s/%s", basepath, files[current_file]->d_name);
 				f = fopen(path, "r");
-				
+
 				/**
 				 * The byte cuts a word only if the previous character IS NOT a delimiter, 
 				 * because it could be the start of a new word otehrwise. So I skip to start_byte - 1
 				 * and consume each character of the cutted word that will be computed to the previous slave
+				 * EDIT: Support for files dimension that divide num_proc
 				*/
-				fseek(f, start_byte - 1, SEEK_SET);
-				while (!is_delimeter(c = fgetc(f)))
-				{
-					start_byte++;
-					partitioning[i]++;
-				}
+				if(start_byte != 0){
+					fseek(f, start_byte - 1, SEEK_SET);
+					while (!is_delimeter(c = fgetc(f)))
+					{
+						start_byte++;
+						partitioning[i]++;
+					}
 
-				//The cutted word could be the last one
-				if (feof(f))
-				{
-					start_byte = 0;
-					current_file++;
+					//The cutted word could be the last one
+					if (feof(f))
+					{
+						start_byte = 0;
+						current_file++;
+					}
 				}
 			}
 
 			infos[i].counting = partitioning[i];
-			printf("Info for process %i: num_file: %ld -- count: %ld -- start_byte: %d\n", i, current_file, partitioning[i], infos[i].num_byte);
+			printf("Info for process %i: num_file: %ld -- count: %ld -- start_byte: %ld\n", i, infos[i].num_file, infos[i].counting,infos[i].num_byte);
 		}
 	}
 	//Distributing info about processing to each slave
 	MPI_Scatter(infos, 1, INFO, my_info, 1, INFO, 0, MPI_COMM_WORLD);
 
-	long int bytes_to_read = my_info->counting;
-	int current_file = my_info->num_file;
-	long int start_byte = my_info->num_byte;
+	long int bytes_to_read = my_info-> counting;
+	long int current_file = my_info-> num_file;
+	long int start_byte = my_info-> num_byte;
 
 	char path[MAX_PATH], *word;
 	long int readed_bytes;
@@ -234,7 +328,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 		//Open the file for first time, or when I switch
 		if (file == NULL)
 		{
-			sprintf(path, "%s/%s", basepath, files[current_file]->d_name);
+			sprintf(path, "%s/%s", basepath, files[current_file]-> d_name);
 			file = fopen(path, "r");
 			if (start_byte > 0) //Skip to start position
 			{
@@ -253,6 +347,7 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 			file = NULL;
 			continue;
 		}
+
 		/**
 		 * Because next_word() trim the delimeter before next word,
 		 * when the bytes_to_read end with a delimeterm, next_word() reads also
@@ -269,28 +364,8 @@ couple *count_word_parallel(struct dirent **files, int num_files,
 	}
 
 	//Receiving and reduce results
-	if (rank == 0)
-	{
-		MPI_Status status;
-		int dim;
-		//I use partitioning[0] beause is alwayis the biggest partition possible
-		cell *data = malloc(sizeof(cell) * partitioning[0]);
-		//Receive a results from each slave
-		for (int i = 0; i < num_proc - 1; i++)
-		{
-			MPI_Recv(data, partitioning[0], CELL, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-			printf("Received results from slave %d\n", status.MPI_SOURCE);
-			MPI_Get_count(&status, CELL, &dim);
-			add_cell_array(data, dim);
-		}
-	}
-	else
-	{
-		long int results_dim;
-		cell *results = compact_map(&results_dim);
-		MPI_Send(results, results_dim, CELL, 0, 0, MPI_COMM_WORLD); //Send my results to master
-		free(results);
-	}
+	reduce(num_proc, rank, my_info->counting, CELL);
+
 }
 
 int main(int argc, char **argv)
@@ -306,6 +381,7 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
 
 	parse_arg(argc, argv, &basepath);
+	
 	//Start counting
 	start_time = MPI_Wtime();
 
@@ -325,15 +401,12 @@ int main(int argc, char **argv)
 
 	if (rank == 0)
 	{
-		output_hash_map();
+		write_csv();
 		end_time = MPI_Wtime();
 		timing_file = fopen("timing.log", "a");
 		fprintf(timing_file, "%lf\n", end_time - start_time);
 		fclose(timing_file);
 	}
-
-
-
 
 	free_hash_map();
 	MPI_Finalize();
