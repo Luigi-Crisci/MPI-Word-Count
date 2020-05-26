@@ -38,10 +38,10 @@ La soluzione segue il paradigma ***Map-Reduce***, in cui la computazione è comp
 L'input è fornito a tutti i nodi ed è composto da una path in cui sono presenti i file da esaminare. **Si assume che tutti i nodi abbiano accesso ai file alla path di input**  
 Il processo 0 provvederà a dividere il *workload* tra i nodi del cluster ed inviare loro i dati necessari (incluso se stesso), quindi ogni nodo processa la sua porzione di input. I dati vengono raccolti dal processo 0, che si occuperà di fornirli in output.
 
-La soluzione presentata è pertanto divisibile in 3 fasi:
-1. Partizionamento e distribuzione dell'input ai nodi;
-2. *Word Count* della porzione assegnata (***Map***);
-3. Collezionamento dei risultati (***Reduce***).
+La soluzione presentata è pertanto divisibile in 3 fasi:  
+1. Partizionamento e distribuzione dell'input ai nodi;  
+2. *Word Count* della porzione assegnata (***Map***);  
+3. Collezionamento dei risultati (***Reduce***).  
 
 #### 1.2.1.1. Partizionamento e distribuzione dell'input
 
@@ -217,7 +217,9 @@ L'algoritmo può essere scomposto in 3 fasi:
 ##### Calcolo *receivers* e *senders*
 
 Ogni nodo ha necessità di calcolare a priori quali saranno i nodi da cui riceverà i dati temporanei ed a quale nodo dovrà inviare i dati da lui computati. Questo è necessario per sfruttare al meglio i sistemi di comunicazione asincrona.  
-Per fare ciò ogni nodo **attraversa l'albero e calcola il suo comportamento per ogni livello:** per ogni livello, calcola il nodo da cui dovrà eventualmente ricevere ed alloca un buffer apposito ed aggiorna il nodo a cui dovrà inviare i risultati.
+Per fare ciò **ogni nodo attraversa l'albero e calcola il suo comportamento per ogni livello:**  
+Di default, in ogni livello i nodi in posizione dispari inviano dati al nodo pari alla loro sinistra, mentre i nodi pari ricevono dal nodo a destra. Per ogni livello ogni nodo calcola quindi la propria posizione, da chi dovrà ricevere, per il quale alloca un buffer apposito e lancia una routine di ricezione asincrona *MPI_Irecv*, ed aggiorna il nodo a cui dovrà inviare i risultati.  
+Eccezzione va fatta per i nodi pari ultimi: se infatti questi sono potenze del 2, allora comunicano direttamente col nodo 0 in quanto non riceveranno mai dati, altrimenti continuano la computazione al livello successivo.  
 
 ```c
 send_proc = rank - 1; //Default behaviour
@@ -251,9 +253,63 @@ send_proc = rank - 1; //Default behaviour
 	}
 ```
 
+##### Ricezione dei dati
+
+Una volta calcolate tutte le informazioni necessarie, ogni nodo aspetta che tutte le routine di ricezione terminino.  
+Qui diventa evidente il vantaggio dell'asincronia: ogni nodo infatti aspetta semplicemente di ricevere il segnale che una ricezione è completata tramite la funzione *MPI_Waitany* e la computa, disinteressandosi dell'etichetta del nodo sorgente e del livello al quale è stata definita tale routine. Ciò permette di evitare stalli e rallentamenti nella ricezione dovuti a nodi meno performanti, i quali avranno più tempo per computare mentre altri nodi più veloci mantengono occupato il nodo destinazione.  
+In sintesi, tale sistema può considerarsi puramente meritocratico.
+
+```c
+int index,received_dim;
+	MPI_Status status;
+	for (int i = 0; i < num_requests; i++)
+	{
+		MPI_Waitany(num_requests,requests,&index,&status);
+		printf("RANK %d: received data from rank %d\n",rank,status.MPI_SOURCE);
+		MPI_Get_count(&status,CELL,&received_dim);
+		add_cell_array(buffers[index],received_dim);
+		free(buffers[index]);
+	}
+	free(buffers);
+```
+
+##### Invio dei risultati
+
+Questa fase consiste semplicemente nell'invio dei propri risultati parziali al nodo di destinazione precedentemente calcolato.  
+Unica nota è la funzione *compact_map_ordered()*:
+
+```c
+		long int dim;
+		cell *results = compact_map_ordered(&dim);
+```
+
+Tale funzione restituisce un vettore di strutture *cell* ordinate rispetto alla chiave (cioè alla parola), ed è necessario per minimizzare le primitive di comunicazione necessarie. La primitiva di invio *MPI_Send*, infatti, ha un funzionamento simile alla funzoine *write* del linguaggio C, pertanto richiede un indirizzo base ed il numero di locazioni di memoria consecutive da inviare. Ciò rende necessario il compattamento della struttura *hash map* utlizzata, la quale per sua natura non è contigua in memoria.
+
 ## 1.3. Benchmark
 
-### 1.3.1. Architettura di testing
+La soluzione proposta è stata testata apporfonditamente al fine di verificarne correttezza e scalabilità in un ambiente distribuito, facendo attenzione al definire delle modalità di testing il più oneste possibili. Ciò significa utilizzare input e casi d'uso che possano rispecchiare quanto più possibile un reale input ad un tale sistema in ambienti di produzione.  
+Le principali metriche utilizzate per la valutazione delle prestaizoni sono lo ***Speedup*** e l' ***Efficienza***:
+
+Lo ***Speedup*** indica l'incremento prestazionale sullo stesso input tra un'esecuzione sequenziale ed una distribuita, calcolato con la seguente formula: 
+
+$$
+Speedup =\frac{Time_{sequential}}{Time_{parallel}} 
+$$  
+
+Per $n$ processori, lo speedup massimo è ovviamente *n*.  
+Tale parametro ci da un'utilile parametro sulla bontà della nostra soluzione.  
+
+L'*Efficienza* è una normalizzazione dello *Speedup* e definisce la bontà della soluzione indicando quanto i tempi di esecuzione distribuita e sequenziale si avvicinino:
+
+$$
+Efficienza = \frac{Time_{sequential}}{n * Time_{parallel}}
+$$
+
+Per l'efficienza, il limite superiore è $1$ e rappresenta il risultato migliore auspicabile. 
+
+### 1.3.1. Architettura di testing  
+
+
 
 ### 1.3.2. Esperimenti 
 
