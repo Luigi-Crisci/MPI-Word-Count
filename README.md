@@ -309,7 +309,18 @@ Per l'efficienza, il limite superiore è $1$ e rappresenta il risultato migliore
 
 ### 1.3.1. Architettura di testing  
 
+Il testing è stato effettuato sulla piattaforma Amazon AWS, in cui è stato configurato un cluster di 16 istanze EC2 modello m4.large.  
+Le istanze m4 rappresentano una scelta bilanciata in memoria, calcolo e rete ed il loro equilibrio è ideale per realizzare un ambiente di testing efficiente e costante.
+> La scelta del modello, rispetto alle più economiche T2, deriva dal *CPU Credit* presente su queste: ogni credito permette di ottenere prestazioni maggiorni per 1 minuto di tempo, ed è pensato per applicazioni web che presentano picchi di carico nel corso della giornata.  
+> Nel nostro ambiente di testing tale variabile ha portato a risultati altalenanti, pertanto si è preferito evitare completamente tale modello.  
 
+Ogni macchina m4.large presenta la seguente configurazione:
+- Processori Intel Xeon® E5-2686 v4 (Broadwell) da 2,3 GHz (2 vCPU);  
+- 8GB RAM;  
+- 450 Mb\s bandwidth
+- 25 GB storage EBS
+
+Ogni macchina 
 
 ### 1.3.2. Esperimenti 
 
