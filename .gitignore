@@ -10,3 +10,4 @@ word_count_seq
 files/*
 *.bash
 file_generator.c
+README.html
