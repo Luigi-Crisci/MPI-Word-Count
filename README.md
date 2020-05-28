@@ -1,37 +1,37 @@
+---
+title: Word Count with MPI
+subtitle: An MPI implementation of Word Count problem
+author: 
+	- Luigi Crisci
+	- Carmine Spagnuolo  
+abstract:
+	"Word Count rappresenta uno dei problemi più famosi nel calcolo distribuito, in cui tutti gli studiosi di tale settore si sono imbattuti almeno una volta nella loro vita.
 
-# 1. Word Count with MPI
-An MPI implementation of Word Count problem
+	Ne verrà presentata un'implementazione in MPI, correlata da un'attenta analisi delle prestazioni."
+---
 
-
-## 1.1. Introduzione
+# 1. Introduzione
 Word Count consiste nel determinare in un testo quante occorrenze ci sono di ogni parola presente. Generalmente si presenta in applicazioni in cui è necessario mantenere le parole inserite in limiti definiti (es. nella narrativa, il numero di parole definisce la categoria dello scritto).  
 
-
-
-<p align="center">
-<img align="center" src="./images/over-the-word-count.jpg" width="400" style="margin: 10px auto 20px; display: block;">
-</p>
+![Word Count in letteratura](images/over-the-word-count.jpg)
 
 Benchè estremamente semplice nella sua definizione, Word Count rappresenta una sfida nel campo della programmazione distribuita a causa dell'enorme taglia dei problemi che possono presentarsi: pensiamo infatti a situazioni in cui i documenti da esaminare hanno dimensioni arrivani anche a 100 TB, in cui un'esecuzione sequenziale arriva a richiedere mesi se non anni di computazione.  
 
 E' naturale quindi pensare a Word Count come un problema di programmazione distribuita, in cui la distrbuzione dell'input tra i nodi di un cluser può significativamente diminuire il tempo necessario, passando da anni al tempo per un caffè :coffee:
 
 
-## 1.2. Soluzione proposta
+# 2. Soluzione proposta
 
 Vieni quindi proposta una soluzione al problema *Word Count* in ambiente distribuito, dove più nodi hanno accesso agli stessi dati. L'input è un insieme di file, e l'output è la lista delle parole contenute nei file associate al numero di loro occorrenze.
 
 La soluzione proposta vuole massimizzare i vantaggi derivanti dalla distribuzione del calcolo e dalla *data locality*, massimizzando il tempo di computazione dei nodi e minimizzando quello di comunicazione. 
 Il protocollo di comunicazione utilizzato per la comunicazione e distribuzione del calcolo è Message Passing Interface (MPI) [^0], il quale rappresenta lo standard *de facto* nel campo della comunicazione tra nodi in un cluster, di cui è stata utlizzata l'implementazione OpenMPI [^1]
 
-<figure align="center">
-  <img src="./images/open-mpi-logo.png" style="margin: 10px auto 20px; display: block;">
-  <figcaption> OpenMPI logo </figcaption>
-</figure>
+![OpenMPI logo](images/open-mpi-logo.png)
 
 La soluzione è stata scritta in linguaggio C, e ne viene in seguito presentata e analizzata l'architettura che la compone.
 
-### 1.2.1. Architettura 
+## 2.1. Architettura 
 
 La soluzione segue il paradigma ***Map-Reduce***, in cui la computazione è composta da una fase di *map*, in cui ogni nodo processa una pate dell'input, e da una fase di *reduce*, in cui i risultati dei singoli nodi vengono messi insieme. 
 
@@ -40,10 +40,10 @@ Il processo 0 provvederà a dividere il *workload* tra i nodi del cluster ed inv
 
 La soluzione presentata è pertanto divisibile in 3 fasi:  
 1. Partizionamento e distribuzione dell'input ai nodi;  
-2. *Word Count* della porzione assegnata (***Map***);  
+2. *Word Count* della porzione assegnata (***Map***);   
 3. Collezionamento dei risultati (***Reduce***).  
 
-#### 1.2.1.1. Partizionamento e distribuzione dell'input
+### 2.1.1. Partizionamento e distribuzione dell'input
 
 In questa fase è solo il proesso 0 ad eseguirla, in quanto è propedeutica alla fase di calcolo distribuita.  
 Lo scopo di questa fase è quello di definire un partizionamento equilibrato del calcolo tra i vari nodi, al fine di minimizzare i tempi di *idle* derivanti da una distribuzione sbilanciata.  
@@ -60,7 +60,8 @@ Per calcolare il file a cui il nodo i arriva al termine della sua computazione (
 ```c
 for (int i = 0; i < num_proc; i++)
 		{
-			partitioning[i] = overflow && overflow_value-- > 0 ? total_dim / num_proc + 1 : total_dim / num_proc;
+			partitioning[i] = overflow && overflow_value-- > 0 ? total_dim /  
+			num_proc + 1 : total_dim / num_proc;
 			infos[i].num_file = current_file;
 			infos[i].num_byte = start_byte;
 
@@ -112,7 +113,7 @@ Per farlo saltiamo al byte **start_byte-1** (solo se non partiamo dall'inizio) e
 
 Il lettore potrebbe domandarsi il perchè non sia stato utilizzato un approccio *word level* o *line level* che eliminerebbe molta della complessità presenti, ed il motivo è presto spiegato ed è figlio del tipo di input a disposizione: entrambi gli approcci, seppur equilibrando al meglio il grado di distribuzione dell'input tra i nodi (ma non gli accessi al file) necessitano di una fase di *pre-processing* iniziale in cui contare il numero di parole o linee presenti nei file. Tale fase può essere estremamente lunga per file di dimensioni considerevoli, e pertanto poco performante.
 
-#### 1.2.1.2. Word count  
+### 2.1.2. Word count  
 
 Per il conteggio delle parole si utilizza una struttura **cell** composta da chiave-valore così definita:
 
@@ -193,28 +194,28 @@ Questa risulta molto semplice, in quanto non bisogna far altro che leggere una p
 		free(word);
 	}
 ```
-#### 1.2.1.3. Reduce
+### 2.1.3. Reduce
 
 La fase di reduce prevede il collezionamento dei risultati dei vari nodi verso il nodo 0, il quale si occuperà dell'output finale.
 
 La struttura adottata è ad ***albero rovesciato direzionato***:
-- I nodi rappresentano le foglie dell'albero
-- Ogni arco rappresenta:
-  - Invio dei risultati se diretto ad un nodo con etichetta diversa dal nodo di partenza
-  - Ricezione dei risultati dai nodi origine degli archi entranti
-- Il nodo radice è il nodo obiettivo della reduce
+- I nodi rappresentano le foglie dell'albero  
+- Ogni arco rappresenta:  
+  - Invio dei risultati se diretto ad un nodo con etichetta diversa dal nodo di partenza  
+  - Ricezione dei risultati dai nodi origine degli archi entranti  
+- Il nodo radice è il nodo obiettivo della reduce  
 
-![Reduce](images/reduce.gif)
+![Reduce](images/reduce.png)
 
 La scelta di tale struttura è dovuta alla volontà di massimizzare l'utilizzo dei nodi nella fase di reduce e distribuire di conseguenza il calcolo in modo intelligente tra i nodi del cluster: infatti tale scelta permette di eseguire, per $n$ nodi, al più $\lceil log_2n \rceil$ *receive* e ridurre considerevolmente il carico di lavoro che, altrimenti, sarebbe gravato su un singolo modo.  
 La comunicazione in questa fase è essenzialmente *asincrona*: ogni nodo definisce dei buffer di ricezione per ogni nodo da cui dovrà ricevere dati che verranno riempiti asincronamente. Ciò ha il vantaggio di massimizzare la velocità di ricezione al costo di un incremento nell'uso di memoria RAM, evitando inoltre stalli nella fase di ricezione a causa di nodi più lenti di altri.
 
 L'algoritmo può essere scomposto in 3 fasi:  
-1. Calcolo di *receivers* e *sender*;
-2. Ricezione dei dati
-3. Invio dei dati
+1. Calcolo di *receivers* e *sender*;  
+2. Ricezione dei dati   
+3. Invio dei dati  
 
-##### Calcolo *receivers* e *senders*
+#### 2.1.3.1. Calcolo *receivers* e *senders*
 
 Ogni nodo ha necessità di calcolare a priori quali saranno i nodi da cui riceverà i dati temporanei ed a quale nodo dovrà inviare i dati da lui computati. Questo è necessario per sfruttare al meglio i sistemi di comunicazione asincrona.  
 Per fare ciò **ogni nodo attraversa l'albero e calcola il suo comportamento per ogni livello:**  
@@ -243,7 +244,8 @@ send_proc = rank - 1; //Default behaviour
 			}
 
 			buffers[num_requests] = calloc(MAX_WORD_NUM,sizeof(cell));
-			MPI_Irecv(buffers[num_requests], MAX_WORD_NUM * sizeof(cell), CELL, (int)(rank + pow(2, level)),
+			MPI_Irecv(buffers[num_requests], MAX_WORD_NUM * sizeof(cell), CELL,  
+			(int)(rank + pow(2, level)),
 					  0, MPI_COMM_WORLD, &requests[num_requests]);
 			num_requests++;
 		}
@@ -253,7 +255,7 @@ send_proc = rank - 1; //Default behaviour
 	}
 ```
 
-##### Ricezione dei dati
+#### 2.1.3.2. Ricezione dei dati
 
 Una volta calcolate tutte le informazioni necessarie, ogni nodo aspetta che tutte le routine di ricezione terminino.  
 Qui diventa evidente il vantaggio dell'asincronia: ogni nodo infatti aspetta semplicemente di ricevere il segnale che una ricezione è completata tramite la funzione *MPI_Waitany* e la computa, disinteressandosi dell'etichetta del nodo sorgente e del livello al quale è stata definita tale routine. Ciò permette di evitare stalli e rallentamenti nella ricezione dovuti a nodi meno performanti, i quali avranno più tempo per computare mentre altri nodi più veloci mantengono occupato il nodo destinazione.  
@@ -273,7 +275,7 @@ int index,received_dim;
 	free(buffers);
 ```
 
-##### Invio dei risultati
+#### 2.1.3.3. Invio dei risultati
 
 Questa fase consiste semplicemente nell'invio dei propri risultati parziali al nodo di destinazione precedentemente calcolato.  
 Unica nota è la funzione *compact_map_ordered()*:
@@ -285,7 +287,10 @@ Unica nota è la funzione *compact_map_ordered()*:
 
 Tale funzione restituisce un vettore di strutture *cell* ordinate rispetto alla chiave (cioè alla parola), ed è necessario per minimizzare le primitive di comunicazione necessarie. La primitiva di invio *MPI_Send*, infatti, ha un funzionamento simile alla funzoine *write* del linguaggio C, pertanto richiede un indirizzo base ed il numero di locazioni di memoria consecutive da inviare. Ciò rende necessario il compattamento della struttura *hash map* utlizzata, la quale per sua natura non è contigua in memoria.
 
-## 1.3. Benchmark
+<div style="page-break-after: always;"></div>
+
+
+# 3. Benchmark
 
 La soluzione proposta è stata testata apporfonditamente al fine di verificarne correttezza e scalabilità in un ambiente distribuito, facendo attenzione al definire delle modalità di testing il più oneste possibili. Ciò significa utilizzare input e casi d'uso che possano rispecchiare quanto più possibile un reale input ad un tale sistema in ambienti di produzione.  
 Le principali metriche utilizzate per la valutazione delle prestaizoni sono lo ***Speedup*** e l' ***Efficienza***:
@@ -307,32 +312,93 @@ $$
 
 Per l'efficienza, il limite superiore è $1$ e rappresenta il risultato migliore auspicabile. 
 
-### 1.3.1. Architettura di testing  
+## 3.1. Architettura di testing  
 
 Il testing è stato effettuato sulla piattaforma Amazon AWS, in cui è stato configurato un cluster di 16 istanze EC2 modello m4.large.  
 Le istanze m4 rappresentano una scelta bilanciata in memoria, calcolo e rete ed il loro equilibrio è ideale per realizzare un ambiente di testing efficiente e costante.
 > La scelta del modello, rispetto alle più economiche T2, deriva dal *CPU Credit* presente su queste: ogni credito permette di ottenere prestazioni maggiorni per 1 minuto di tempo, ed è pensato per applicazioni web che presentano picchi di carico nel corso della giornata.  
 > Nel nostro ambiente di testing tale variabile ha portato a risultati altalenanti, pertanto si è preferito evitare completamente tale modello.  
 
-Ogni macchina m4.large presenta la seguente configurazione:
+Ogni macchina m4.large presenta la seguente configurazione hardware:  
 - Processori Intel Xeon® E5-2686 v4 (Broadwell) da 2,3 GHz (2 vCPU);  
 - 8GB RAM;  
-- 450 Mb\s bandwidth
-- 25 GB storage EBS
+- 450 Mb\\s bandwidth  
+- 25 GB storage EBS  
 
-Ogni macchina 
+La configurazione software è invece composta da Ubuntu® Bionic 18.04, con installati solo una piccola serie di software addizionali quali:
+- Htop
+- VIM
+> La configurazione è possibile riprodurla configurado una macchina EC2 con AMI *ami-07ebfd5b3428b6f4d*
 
-### 1.3.2. Esperimenti 
+Durante la fase di testing le macchine erano scariche di qualsiasi processo addizionale se non quelli previsti di base dal sistema operativo, ad eccezione di una sessione SSH aperta sul nodo 0 ad inizio fase di test, ma assolutamente irrilevante nel quadro delle prestazioni.
 
-#### 1.3.2.1. Weak Scalability
+## 3.2. Esperimenti 
 
-#### 1.3.2.2. Strong Scalability
+Gli esperimenti effettuati sono stati definiti al fine di verificare la capacità della soluzione proposta di *scalare* in un ambiente distribuito reale.  
 
-### 1.3.3. Risultati
+> Per *scalabilità* si intende la capacità di un applicativo software di migliorare le proprie performance al crescere delle risorse disponibili sulla macchina corrente (*scalabilità verticale*) o all'aumentare dei nodi che partecipano alla computazione (*scalabilità orizzontale*).  
+> Nei nostri esperimenti prenderemo in considerazione solo la scalabilità orizzontale, la quale meglio definisce la bontà della soluzione proposta in un ambiente distribuito.
 
-## 1.4. Conclusioni
+Tale metrica viene ulteriormente divisa in 2 metriche differenti:  
+- *Strong Scalability*  
+- *Weak Scalability*  
 
-## 1.5. Bibliografia
+Presenteremo tali metriche singolarmente, associate ai risultati ottenuti.
+
+### 3.2.2. Strong Scalability  
+
+Nella *Strong Scalability* la taglia dell'input resta costante mentre il numero di processori aumenta. Tale metrica permette di definire quanto bene l'applicativo è in grado di velocizzare il calcolo di una cerca istanza del problema all'aumentare dei nodi: maggiore è l'incremento, maggiore è la qualità della soluzione.  
+
+La *Strong Scalability Efficiency* è calcolata tramite la seguente formula:
+
+
+$$
+\begin{gathered}
+	Sia\,n\,il\,numero\,di\,processori,\,t_{1}\,il\,tempo\,di\,esecuzione\,per\,1\,processore\\e \,t_{n}\,il\,tempo\,per\,n\,processori, allora\,la\,Strong\,Scalability\,Efficiency\,è:\\E_{strong}=(\frac{t1}{n*t_{n}})
+\end{gathered}
+$$
+
+Per questi esperimenti è stato utilizzato come input un insieme di file aventi $1$ parola per linea per una taglia totale di 6 GB.
+
+------------------
+
+Qui sono riportati i risultati ottenuti:
+
+![Tempo di esecuzione per scalabilità forte](images/strong_scaling.png){width=70% height=70%}
+
+Come è possibile osservare dalla figura 3, l'efficienza si avvicina si avvicina strettamente al valore 1 per tutti gli esperimenti effettuati, il che indica un'ottimo scaling da parte della soluzione proposta.
+
+![Efficienza per scalabilità forte](images/strong_scaling_eff.png){width=70% height=70%}
+
+### 3.2.1. Weak Scalability
+
+Nella ***Weak Scalability*** si verificano le prestazioni di un applicativo software quando la taglia dell'input cresce proporzionalmente al numero di processori.  
+Tale metrica misura in particolar modo l'impatto dell'overhead derivante dalla comunicazione nell'ambiente distribuito sulle performance dell'applicazione.  
+
+La ***Weak Scalability efficiency*** è calcolata tramite la seguente formula:  
+
+$$
+\begin{gathered}
+	Sia\,n\,il\,numero\,di\,processori,\,t_{1}\,il\,tempo\,di\,esecuzione\,per\,1\,processore\\e \,t_{n}\,il\,tempo\,per\,n\,processori, allora\,la\,Weak\,Scalability\,Efficiency\,è:\\E_{weak}=\frac{t1}{t_{n}}
+\end{gathered}
+$$
+
+Per questi esperimenti è stato utilizzato un file contenete $1$ parola per riga dalla taglia di $1 GB$, replicato per ogni nodo partecipante alla computaizone. Per esempio, per 3 nodi il file era replicato 3 volte per una taglia totale di input di 3GB
+
+------------------
+
+Qui sono riportati i risultati ottenuti:
+
+![Efficienza per scalabilità debole](images/weak_scaling_eff.png){width=70% height=70%}
+
+Come è possibile osservare dalla figura 4, l'andamento della soluzione proposta peggiora leggermente all'aumentare dei nodi: ciò è naturale ed è dovuto all'overhad sempre maggiore generato dalla comunicazione dei risultati intermedi da parte dei nodi. Ciononostante, l'efficienza resta sempre molta vicino al valore $1$ ottimale, dimostrazione di una strutturazione efficiente.  
+
+# 4. Conclusioni
+
+Abbiamo presentato il problema del Word Count, che consiste nel determinare il numero di occorrenze di ogni parola presente in un insieme di file. Abbiamo quindi presentato una soluzione distruibuita del problema, implementata utilizzando lo standard di comunicazione MPI e ne abbiamo analizzato accuratamente le performance.    
+La soluzione proposta ha ottenuto ottimi risultati sia in scalabilità forte che debole, dimostrando stabilità e prestazioni eccellenti.  
+Possibile miglioramento potrebbe essere quello di definire un miglior fattore di determinazione del numero di parole aspettate nei testi da analizzare, utilizzando tecniche probabilistiche, che potrebbe decrementare significativamente il consumo di memoria per ogni operaione di *recieve* di ogni nodo.
+
 
 [^0]: https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report.pdf
 [^1]: https://www.open-mpi.org/
