@@ -13,3 +13,4 @@ file_generator.c
 README.html
 README.pdf
 .vscode/*
+*.py

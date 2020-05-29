@@ -1,0 +1,34 @@
+TEST WEAK
+Num_proc: 1 -- dim_array:  -- Iteration:  -- k:  --- time: 133.67031580
+Num_proc: 2 -- dim_array:  -- Iteration:  -- k:  --- time: 134.04201980
+Num_proc: 3 -- dim_array:  -- Iteration:  -- k:  --- time: 140.08973000
+Num_proc: 4 -- dim_array:  -- Iteration:  -- k:  --- time: 137.78763860
+Num_proc: 5 -- dim_array:  -- Iteration:  -- k:  --- time: 142.07810100
+Num_proc: 6 -- dim_array:  -- Iteration:  -- k:  --- time: 138.55642740
+Num_proc: 7 -- dim_array:  -- Iteration:  -- k:  --- time: 136.64407900
+Num_proc: 8 -- dim_array:  -- Iteration:  -- k:  --- time: 142.46122240
+Num_proc: 9 -- dim_array:  -- Iteration:  -- k:  --- time: 140.49275420
+Num_proc: 10 -- dim_array:  -- Iteration:  -- k:  --- time: 142.34121240
+Num_proc: 11 -- dim_array:  -- Iteration:  -- k:  --- time: 141.52438440
+Num_proc: 12 -- dim_array:  -- Iteration:  -- k:  --- time: 148.98761100
+Num_proc: 13 -- dim_array:  -- Iteration:  -- k:  --- time: 142.76818700
+Num_proc: 14 -- dim_array:  -- Iteration:  -- k:  --- time: 144.40652900
+Num_proc: 15 -- dim_array:  -- Iteration:  -- k:  --- time: 146.01243500
+Num_proc: 16 -- dim_array:  -- Iteration:  -- k:  --- time: 144.41508300
+TEST STRONG
+Num_proc: 1 -- dim_array:  -- Iteration:  -- k:  --- time: 802.01455160
+Num_proc: 2 -- dim_array:  -- Iteration:  -- k:  --- time: 403.09425400
+Num_proc: 3 -- dim_array:  -- Iteration:  -- k:  --- time: 273.05772840
+Num_proc: 4 -- dim_array:  -- Iteration:  -- k:  --- time: 204.83558420
+Num_proc: 5 -- dim_array:  -- Iteration:  -- k:  --- time: 168.41264780
+Num_proc: 6 -- dim_array:  -- Iteration:  -- k:  --- time: 143.09939440
+Num_proc: 7 -- dim_array:  -- Iteration:  -- k:  --- time: 118.19842620
+Num_proc: 8 -- dim_array:  -- Iteration:  -- k:  --- time: 106.47782960
+Num_proc: 9 -- dim_array:  -- Iteration:  -- k:  --- time: 93.30722260
+Num_proc: 10 -- dim_array:  -- Iteration:  -- k:  --- time: 83.66375300
+Num_proc: 11 -- dim_array:  -- Iteration:  -- k:  --- time: 74.37769380
+Num_proc: 12 -- dim_array:  -- Iteration:  -- k:  --- time: 71.03496300
+Num_proc: 13 -- dim_array:  -- Iteration:  -- k:  --- time: 64.75570160
+Num_proc: 14 -- dim_array:  -- Iteration:  -- k:  --- time: 60.91563180
+Num_proc: 15 -- dim_array:  -- Iteration:  -- k:  --- time: 57.16167020
+Num_proc: 16 -- dim_array:  -- Iteration:  -- k:  --- time: 52.16635700
