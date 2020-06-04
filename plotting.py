@@ -21,7 +21,7 @@ def plot_results(x, y, x_label, y_label, axis, graph_label, result_name):
 
 
 if __name__ == "__main__":
-    files = "C:\\Users\\luigi\\Google Drive\\Materiale\\PCPC\\Progetto\\Risultati.txt"
+    files = "D:\\GitRepo\\MPI-Word-Count\\testing\\risultati_c5.txt"
     weak_scaling = []
     weak_scaling_efficiency = []
     strong_scaling = []
@@ -59,10 +59,11 @@ if __name__ == "__main__":
     x = np.linspace(1, 16, 16)
     # Strong Scaling
     plt.rc('grid', linestyle="dotted", color='grey')
-    plt.xlabel("Num nodes")
+    plt.xlabel("Num CPU")
     plt.ylabel("Time (minutes)")
-    plt.axis([1, 16, 1, 16])
-    plt.yticks(np.arange(0, 17, 1))
+    plt.axis([1, 16, 1, 9])
+    plt.yticks(np.arange(0, 9, 1))
+    # plt.xticks(np.hstack([np.array(1),np.arange(2, 34, 2)]))
     plt.xticks(x)
     plt.plot(x, strong_scaling, label="Strong Scaling")
     # Best results possible
@@ -78,23 +79,25 @@ if __name__ == "__main__":
 
     plt.legend()
     plt.grid()
-    plt.savefig("".join(["images/", "strong_scaling.png"]))
+    plt.savefig("".join(["images/", "strong_scaling_c5.png"]))
     plt.close()
 
     # Strong Scaling Speedup
     plt.rc('grid', linestyle="dotted", color='grey')
-    plt.xlabel("Num nodes")
+    plt.xlabel("Num CPU")
     plt.ylabel("Speedup")
     plt.axis([1, 16, 1, 16])
-    plt.yticks(np.arange(0, 17, 1))
+    # plt.yticks(np.hstack([np.array(1),np.arange(2, 34, 2)]))
+    # plt.xticks(np.hstack([np.array(1),np.arange(2, 34, 2)]))
     plt.xticks(x)
+    plt.yticks(x)
     plt.plot(x, strong_scaling_speedup, label="Strong Scaling Speedup")
     # Best results possible
     plt.plot(x, x, label="Best result possible")
 
     plt.legend()
     plt.grid()
-    plt.savefig("".join(["images/", "strong_scaling_speedup.png"]))
+    plt.savefig("".join(["images/", "strong_scaling_speedup_c5.png"]))
     plt.close()
 
     # Strong Scaling efficiency
@@ -102,13 +105,14 @@ if __name__ == "__main__":
     plt.xlabel("Num nodes")
     plt.ylabel("Efficiency")
     plt.axis([1, 16, 0, 1.5])
+    # plt.xticks(np.hstack([np.array(1),np.arange(2, 34, 2)]))
     plt.xticks(x)
     plt.yticks(np.arange(0, 1.5, step=0.1))
     plt.plot(x, strong_scaling_efficiency, label="Strong Scaling Efficiency")
     plt.plot(x, np.ones(16), label="Best result possible")
     plt.legend()
     plt.grid()
-    plt.savefig("".join(["images/", "strong_scaling_eff.png"]))
+    plt.savefig("".join(["images/", "strong_scaling_eff_c5.png"]))
     plt.close()
 
     # Weak Scaling
@@ -116,11 +120,12 @@ if __name__ == "__main__":
     plt.xlabel("Num nodes")
     plt.ylabel("Efficiency")
     plt.axis([1, 16, 0, 1.5])
+    # plt.xticks(np.hstack([np.array(1),np.arange(2, 34, 2)]))
     plt.xticks(x)
     plt.yticks(np.arange(0, 1.5, step=0.1))
     plt.plot(x, weak_scaling_efficiency, label="Weak Scaling Efficiency")
     plt.plot(x, np.ones(16), label="Best result possible")
     plt.legend()
     plt.grid()
-    plt.savefig("".join(["images/", "weak_scaling_eff.png"]))
+    plt.savefig("".join(["images/", "weak_scaling_eff_c5.png"]))
     plt.close()

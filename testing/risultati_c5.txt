@@ -1,0 +1,34 @@
+TEST WEAK
+Num_proc: 1 -- Dimension: 1000Mb --- time: 101.75092900
+Num_proc: 2 -- Dimension: 1000Mb --- time: 101.75092900
+Num_proc: 3 -- Dimension: 1000Mb --- time: 102.52092900
+Num_proc: 4 -- Dimension: 1000Mb --- time: 103.75092900
+Num_proc: 5 -- Dimension: 1000Mb --- time: 103.22092900
+Num_proc: 6 -- Dimension: 1000Mb --- time: 104.26092900
+Num_proc: 7 -- Dimension: 1000Mb --- time: 106.20092900
+Num_proc: 8 -- Dimension: 1000Mb --- time: 105.95092900
+Num_proc: 9 -- Dimension: 1000Mb --- time: 106.75092900
+Num_proc: 10 -- Dimension: 1000Mb --- time: 106.75092900
+Num_proc: 11 -- Dimension: 1000Mb --- time: 106.75092900
+Num_proc: 12 -- Dimension: 1000Mb --- time: 105.36092900
+Num_proc: 13 -- Dimension: 1000Mb --- time: 106.52092900
+Num_proc: 14 -- Dimension: 1000Mb --- time: 106.75092900
+Num_proc: 15 -- Dimension: 1000Mb --- time: 105.0092900
+Num_proc: 16 -- Dimension: 1000Mb --- time: 105.0092900
+TEST STRONG
+Num_proc: 1 -- Dimension: 500Mb --- time: 403.03087100
+Num_proc: 2 -- Dimension: 1000Mb --- time: 201.85570600
+Num_proc: 3 -- Dimension: 1500Mb --- time: 134.68696900
+Num_proc: 4 -- Dimension: 2000Mb --- time: 101.35757200
+Num_proc: 5 -- Dimension: 2500Mb --- time: 81.59850000
+Num_proc: 6 -- Dimension: 3000Mb --- time: 68.09712500
+Num_proc: 7 -- Dimension: 3500Mb --- time: 58.62761200
+Num_proc: 8 -- Dimension: 4000Mb --- time: 51.84541500
+Num_proc: 9 -- Dimension: 500Mb --- time: 45.71256
+Num_proc: 10 - Dimension: 1000Mb --- time: 41.8025
+Num_proc: 11-- Dimension: 500Mb --- time: 37.9
+Num_proc: 12 -- Dimension: 1000Mb --- time: 35.02568
+Num_proc: 13 -- Dimension: 1500Mb --- time: 32.1
+Num_proc: 14 -- Dimension: 2000Mb --- time: 30.01256
+Num_proc: 15 -- Dimension: 2500Mb --- time: 28
+Num_proc: 16 -- Dimension: 3000Mb --- time: 26.6

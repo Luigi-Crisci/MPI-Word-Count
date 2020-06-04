@@ -366,7 +366,8 @@ Tale metrica viene ulteriormente divisa in 2 metriche differenti:
 
 Presenteremo tali metriche singolarmente, associate ai risultati ottenuti.
 
-### 3.2.2. Strong Scalability  
+
+### 3.2.1. Strong Scalability  
 
 Nella *Strong Scalability* la taglia dell'input resta costante mentre il numero di nodi aumenta. Tale metrica permette di definire quanto bene l'applicativo è in grado di velocizzare il calcolo di una cerca istanza del problema all'aumentare dei nodi: maggiore è l'incremento, maggiore è la qualità della soluzione.  
 
@@ -394,15 +395,51 @@ Per questi esperimenti è stato utilizzato come input un insieme di file da $1\,
 
 Qui sono riportati i risultati ottenuti:
 
-![Tempo di esecuzione per *Strong Scalability*](images/strong_scaling.png){width=85% height=85%}
+![M4 - Tempo di esecuzione per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_m4.png){width=85% height=85%}
 
-![Speedup per *Strong Scalability*](images/strong_scaling_speedup.png){width=85% height=85%}
+![M4 - Speedup per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_speedup_m4.png){width=85% height=85%}
 
-Come è possibile osservare dalle figure 6 e 7,sia l'efficienza che lo speedup si avvicinano ai risultati auspicabili, con lo speedup che raggiuge addirittura un valore di $15.37$ per 16 istanze. Tali risultati dimostrano l'efficacia della soluzione proposta di sfruttare al meglio i nodi aggiuntivi e sono sintomo di una buona suddivisione dei compiti tra questi.  
+Come è possibile osservare dalle figure 5 e 6, il tempo di esecuzione (ed il relativo speedup) risultano estremamente negativi, avendo ottenuto uno speedup di 20 con 32 vCPU. Tale risultato è particolamente scoraggiante, ma osservando i log dell'applicazione si è notato che il punto critico non era la comunicazione, come è normale aspettarsi all'aumentare dei nodi coinvolti, ma bensì la fase di computazione per core, la quale rallentava considerevolmente.  
+Tale risultato ha fatto nascere il sospetto che tali risultati derivassero dalla configurazione della macchina m4.large, che in effetti fornisce 1 core fisico su cui le 2 vCPU girano in *hyperthreading*.  
+Di conseguenza si è dedotto che fosse l'*hyperthreading* il responsabile di tali risultati scadenti, in quanto non fornisce un incremento prestazionale di fattore 2 quando è attivo.
 
-![Efficienza per scalabilità forte](images/strong_scaling_eff.png){width=85% height=85%}
+![M4 - Efficienza per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_eff_m4.png){width=85% height=85%}
 
-### 3.2.1. Weak Scalability
+Per confermare tale tesi, gli esperimenti sono stati ripetuti utilizzando il cluster in modo tale da lanciare un numero di processi per macchina al più uguale al numero di core fisici, in modo da misurare l'effettiva scalabilità della soluzione proposta in un sistema in cui ogni processore è effettivamente indipendente dall'altro.  
+
+![M4 - Tempo di esecuzione per *Strong Scalability* (CPU)](images/strong_scaling_m4.png){width=85% height=85%}
+
+![M4 - Speedup per *Strong Scalability* (CPU)](images/strong_scaling_speedup_m4.png){width=85% height=85%}
+
+![M4 - Efficienza per *Strong Scalability* (CPU)](images/strong_scaling_eff_m4.png){width=85% height=85%}
+
+I risultati in questo caso risultano molto incoraggianti, raggiungendo uno speedup di circa 15 con 16 processori e dimostrando un'ottima scalabilità forte della soluzione proposta.  
+
+Per confermare la tesi che il numero di core fisici (e di conseguenza l'*hyperthreading*) era il reale motivo dei pessimi risultati nei primi esperimenti, è stato configurato un ulteriore cluster di 8 maccchine c5.xlarge, le quali sono istanze ottimizzate per il calcolo (che, nel nostro caso, risulatva essere il collo di bottiglia) in cui ripetere gli esperimenti.  
+Ogni macchina c5.xlarge presenta le seguenti caratteristiche:  
+- Intel Xeon di seconda generazione (Cascade Lake) o Intel Xeon Platinum serie 8000 (Skylake-SP), $3.4\,GH_{z}$ (4 vCPU e 2 CPU fisiche)  
+- 8 GB RAM  
+- 30 GB storage EBS  
+
+Presentiamo prima i risultati per vCPU e subito dopo per CPU:  
+
+![C5 - Tempo di esecuzione per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_c5.png){width=85% height=85%}
+
+![C5 - Speedup per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_speedup_c5.png){width=85% height=85%}
+
+![C5 - Efficienza per *Strong Scalability* (vCPU)](images/vcpu_strong_scaling_eff_c5.png){width=85% height=85%}  
+
+I risultati per vCPU ottengono i risultati aspettati, ottenendo scalabilità quasi lineare fintantochè i core disponibili sono solo fisici (alla figura 12 infatti, è possibile notare come lo speedup segua il risultato migliroe auspicabile fino a 2 core), per poi peggiorare significativamente.  
+
+![C5 - Tempo di esecuzione per *Strong Scalability* (CPU)](images/strong_scaling_c5.png){width=85% height=85%}
+
+![C5 - Speedup per *Strong Scalability* (CPU)](images/strong_scaling_speedup_c5.png){width=85% height=85%}
+
+![C5 - Efficienza per *Strong Scalability* (CPU)](images/strong_scaling_eff_c5.png){width=85% height=85%}
+
+Come per le macchine m4, i risultati si avvicinano alla scalabilità lineare e, di conseguenza, possiamo asserire che l'*hyperthreading* è il responsabile dei cattivi risultati precedenti.
+
+### 3.2.2. Weak Scalability
 
 Nella ***Weak Scalability*** si verificano le prestazioni di un applicativo software quando la taglia dell'input cresce proporzionalmente al numero di nodi.  
 Tale metrica misura in particolar modo l'impatto dell'overhead derivante dalla comunicazione nell'ambiente distribuito sulle performance dell'applicazione.  
@@ -421,11 +458,17 @@ Data la natura particolare dell'esperimento, viene riportata esclusivamente l'ef
 
 ------------------
 
-Qui sono riportati i risultati ottenuti:
+Qui sono riportati i risultati ottenuti, sia per le macchine m4 che per le macchine m5, sia nella versione vCPU che CPU:
 
-![Efficienza per scalabilità debole](images/weak_scaling_eff.png){width=85% height=85%}
+![M4 - Efficienza per *Weak Scalability* (vCPU)](images/vcpu_weak_scaling_eff_m4.png){width=85% height=85%}
 
-Come è possibile osservare dalla figura 8, l'andamento della soluzione proposta peggiora leggermente all'aumentare dei nodi: ciò è naturale ed è dovuto all'overhad sempre maggiore generato dalla comunicazione dei risultati intermedi da parte dei nodi. Ciononostante, l'efficienza resta sempre molta vicino al valore $1$ ottimale, dimostrazione di una strutturazione efficiente della fase di comunicazione.  
+![M4 - Efficienza per *Weak Scalability* (CPU)](images/weak_scaling_eff_m4.png){width=85% height=85%}
+
+![C5 - Efficienza per *Weak Scalability* (vCPU)](images/vcpu_weak_scaling_eff_c5.png){width=85% height=85%}
+
+![C5 - Efficienza per *Weak Scalability* (CPU)](images/weak_scaling_eff_c5.png){width=85% height=85%}
+
+Come è possibile osservare dalle figure 15 e 17, la soluzione proposta ottiene un'efficienza di circa 0.9 per le macchine m4.large e 0.95 per le macchine c5.xlarge, dimostrando una notevole stabilità al crescere del carico computazionale, mentre allo stesso modo per gli esperimenti riguardanti la *Strong Scalability* l'utilizzo dell'hyperthreading porta a risultati pessimi, ottenendo un'efficienza di 0.7.  
 
 # 4. Conclusioni
 
