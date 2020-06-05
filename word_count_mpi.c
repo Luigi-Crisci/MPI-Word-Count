@@ -223,6 +223,7 @@ void count_word_parallel(struct dirent **files, int num_files,
 	if (rank == 0)
 	{
 		long int total_dim, dimensions[num_files], overflow, overflow_value, current_file, start_byte;
+		int no_more_file = 0;
 		char c;
 		struct stat s;
 		FILE *f;
@@ -255,7 +256,7 @@ void count_word_parallel(struct dirent **files, int num_files,
 			infos[i].num_file = current_file;
 			infos[i].num_byte = start_byte;
 
-			if (i != (num_proc - 1))
+			if (i != (num_proc - 1) && !no_more_file)
 			{
 			/**
 			 * We compute the start byte for next slave. Because there is an order relationship between files,
@@ -269,8 +270,12 @@ void count_word_parallel(struct dirent **files, int num_files,
 					{
 						if (start_byte == dimensions[current_file])
 						{
-							start_byte = 0;
-							current_file++;
+							if((current_file + 1) < num_files){
+								start_byte = 0;
+								current_file++;
+						}
+						else
+							no_more_file = 1;
 						}
 						break;
 					}
@@ -286,8 +291,9 @@ void count_word_parallel(struct dirent **files, int num_files,
 				 * because it could be the start of a new word otehrwise. So I skip to start_byte - 1
 				 * and consume each character of the cutted word that will be computed to the previous slave
 				 * EDIT: Support for files dimension that divide num_proc
+				 * BUGFIX: Added support to files which have a number of words less than number of processor
 				*/
-				if(start_byte != 0){
+				if(start_byte != 0 && !no_more_file){
 					fseek(f, start_byte - 1, SEEK_SET);
 					while (!is_delimeter(c = fgetc(f)))
 					{
@@ -295,13 +301,27 @@ void count_word_parallel(struct dirent **files, int num_files,
 						partitioning[i]++;
 					}
 
+					//Skip delimeters after words end
+					while (is_delimeter(c = fgetc(f)))
+						start_byte++;
+					
 					//The cutted word could be the last one
 					if (feof(f))
 					{
-						start_byte = 0;
-						current_file++;
+						if((current_file + 1) < num_files){
+							start_byte = 0;
+							current_file++;
+						}
+						else
+							//This condition is necessary to handle a case where the number of words in the files is
+							//less then the number of processos. In this case, only the first num_words processor will have a
+							//word to compute, while the other ones will do nothing
+							//This flag will stop the position calculation for every other processor
+							no_more_file = 1;
 					}
 				}
+
+				fclose(f);
 			}
 
 			infos[i].counting = partitioning[i];
@@ -392,6 +412,15 @@ int main(int argc, char **argv)
 
 	//Read files
 	struct dirent **files = read_files(&num_files, basepath);
+	if( num_files == 0 ){
+		fprintf(stderr,"Path is empty, please provide a path with at least 1 file\n");
+		MPI_Type_free(&INFO);
+		MPI_Type_free(&STRING);
+		MPI_Type_free(&CELL);
+		MPI_Finalize();
+		return 1;
+	}
+
 	//Do the trick
 	count_word_parallel(files, num_files, basepath, num_proc, rank, INFO, CELL);
 
