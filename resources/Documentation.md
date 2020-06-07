@@ -1,6 +1,5 @@
 ---
-title: Word Count with MPI
-subtitle: An MPI implementation of Word Count problem
+title: An MPI implementation of Word Count problem
 author: 
 	- Luigi Crisci
 	- Carmine Spagnuolo  
