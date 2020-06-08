@@ -410,7 +410,7 @@ Qui sono riportati i risultati ottenuti:
 
 Come è possibile osservare dalle figure 5 e 6, il tempo di esecuzione (ed il relativo speedup) risultano estremamente negativi, avendo ottenuto uno speedup di 20 con 32 vCPU. Tale risultato è particolamente scoraggiante, ma osservando i log dell'applicazione si è notato che il punto critico non era la comunicazione, come è normale aspettarsi all'aumentare dei nodi coinvolti, ma bensì la fase di computazione per core, la quale rallentava considerevolmente.  
 Tale risultato ha fatto nascere il sospetto che tali risultati derivassero dalla configurazione della macchina m4.large, che in effetti fornisce 1 core fisico su cui le 2 vCPU girano in *hyperthreading*.  
-Di conseguenza si è dedotto che fosse l'*hyperthreading* il responsabile di tali risultati scadenti, in quanto non fornisce un incremento prestazionale di fattore 2 quando è attivo.
+Di conseguenza si è dedotto che fosse l'*hyperthreading* il responsabile di tali risultati scadenti, in quanto, per 2 Thread, non fornisce un incremento prestazionale di fattore 2 quando è attivo.
 
 ![M4 - Efficienza per *Strong Scalability* (vCPU)](../images/vcpu_strong_scaling_eff_m4.png){width=85% height=85%}
 
@@ -438,7 +438,7 @@ Presentiamo prima i risultati per vCPU e subito dopo per CPU:
 
 ![C5 - Efficienza per *Strong Scalability* (vCPU)](../images/vcpu_strong_scaling_eff_c5.png){width=85% height=85%}  
 
-I risultati per vCPU ottengono i risultati aspettati, ottenendo scalabilità quasi lineare fintantochè i core disponibili sono solo fisici (alla figura 12 infatti, è possibile notare come lo speedup segua il risultato migliroe auspicabile fino a 2 core), per poi peggiorare significativamente.  
+I risultati per vCPU ottengono i risultati aspettati, ottenendo scalabilità quasi lineare fintantochè i core disponibili sono solo fisici (alla figura 12 infatti, è possibile notare come lo speedup segua il risultato migliore auspicabile fino a 2 core), per poi peggiorare significativamente.  
 
 ![C5 - Tempo di esecuzione per *Strong Scalability* (CPU)](../images/strong_scaling_c5.png){width=85% height=85%}
 
@@ -446,7 +446,9 @@ I risultati per vCPU ottengono i risultati aspettati, ottenendo scalabilità qua
 
 ![C5 - Efficienza per *Strong Scalability* (CPU)](../images/strong_scaling_eff_c5.png){width=85% height=85%}
 
-Come per le macchine m4, i risultati si avvicinano alla scalabilità lineare e, di conseguenza, possiamo asserire che l'*hyperthreading* è il responsabile dei cattivi risultati precedenti.
+Come per le macchine m4, i risultati si avvicinano alla scalabilità lineare e, di conseguenza, possiamo asserire che l'*hyperthreading* è il responsabile dei cattivi risultati precedenti.  
+
+In conclusione, possiamo afferamare che la soluzione proprosta presenta un'ottima scalabilità forte, figlia della divisione del lavoro *fine-grained* attuata, che divide equalmente il carico tra i nodi coinvolti nella computazione.
 
 ### 3.2.2. Weak Scalability
 
@@ -479,10 +481,13 @@ Qui sono riportati i risultati ottenuti, sia per le macchine m4 che per le macch
 
 Come è possibile osservare dalle figure 15 e 17, la soluzione proposta ottiene un'efficienza di circa 0.9 per le macchine m4.large e 0.95 per le macchine c5.xlarge, dimostrando una notevole stabilità al crescere del carico computazionale, mentre allo stesso modo per gli esperimenti riguardanti la *Strong Scalability* l'utilizzo dell'hyperthreading porta a risultati pessimi, ottenendo un'efficienza di 0.7.  
 
+In conclusione, possiamo affermare che la soluzione proposta presenta un'ottima scalabilità debole, figlia dell'oculata gestione della comunicazione tra i nodi, effettuata in modo asincrono e sfruttando i costruitti di MPI per la gestione dei tipi da utilizzare nella comunicazione. Inoltre, tali risultati mostrano una bassa influenza della fase di compattazione delle *hash map* nei risultati, confermando la tesi precedentemente indicata.
+
 # 4. Conclusioni
 
-Abbiamo presentato il problema del Word Count, che consiste nel determinare il numero di occorrenze di ogni parola presente in un insieme di file. Abbiamo quindi presentato una soluzione distruibuita del problema, implementata utilizzando lo standard di comunicazione MPI e ne abbiamo analizzato accuratamente le performance.    
-La soluzione proposta ha ottenuto ottimi risultati sia in scalabilità forte che debole, dimostrando stabilità e prestazioni eccellenti.  
+Abbiamo presentato il problema del Word Count, che consiste nel determinare il numero di occorrenze di ogni parola presente in un insieme di file. Abbiamo quindi presentato una soluzione distruibuita del problema, implementata utilizzando lo standard di comunicazione MPI.
+Ne abbiamo analizzato accuratamente le performance, misurate in funzione della *scalabilità forte*, che misura il miglioramente delle prestazione a crescere dei nodi su un input costante, e *scalabilità debola*, che invece misura prevalentemente l'impatto della comunicazione nella computazione.
+La soluzione proposta ha ottenuto ottimi risultati sia in scalabilità forte che debole, dimostrando stabilità e prestazioni eccellenti grazie ad una corretta gestione della comunicazione e alla divisione accurata del lavoro tra i nodi. 
 Possibile miglioramento potrebbe essere quello di definire un miglior fattore di determinazione del numero di parole aspettate nei testi da analizzare, utilizzando tecniche probabilistiche, che potrebbe decrementare significativamente il consumo di memoria per ogni operaione di *recieve* di ogni nodo.
 
 
