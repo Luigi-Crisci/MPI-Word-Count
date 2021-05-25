@@ -1,6 +1,6 @@
-# An MPI implementation of Word Count Problem  
+# An MPI implementation of the Word Count Problem  
 
-This is an MPI implementation of *Word Count* problem made with MPI (OpenMPI implementation), made as a final project for the course *Programmazione Concorrente e Parallela su Cloud, 2020, Unisa.*  
+This is an MPI implementation of the *Word Count* problem made with MPI (OpenMPI implementation), made as a final project for the course *Programmazione Concorrente e Parallela su Cloud, 2020, Unisa.*  
 
 Please go to *[resources](https://github.com/Luigi-Crisci/MPI-Word-Count/tree/master/resources)* sub-dir to find full documentation (in *Italian*) about this solution.
 
